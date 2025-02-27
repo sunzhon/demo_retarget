@@ -51,7 +51,7 @@ def load_amass_data(data_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--amass_root", type=str, default="/home/admin-1/workspace/human2humanoid/data/AMASS/AMASS_Complete")
+    parser.add_argument("--amass_root", type=str, default="/home/admin-1/workspace/demo_retarget/data/AMASS/AMASS_Complete")
     args = parser.parse_args()
     
     device = torch.device("cpu")
