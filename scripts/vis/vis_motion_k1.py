@@ -48,7 +48,7 @@ class AssetDesc:
 
 #1) Prepare simulation and env
 asset_root = "./../"
-k1_urdf = "kepler_ws/resources/Robots/Kepler/K1/urdf/k1_v2.urdf"
+k1_urdf = "resources/Robots/Kepler/K1/urdf/k1_v2.urdf"
 asset_descriptors = [
     AssetDesc(k1_urdf, False),
 ]
