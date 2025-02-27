@@ -46,22 +46,13 @@ class AssetDesc:
         self.file_name = file_name
         self.flip_visual_attachments = flip_visual_attachments
 
-
+#1) Prepare simulation and env
 asset_root = "./../"
-h1_xml = "resources/robots/h1/h1.xml"
-h1_urdf = "resources/robots/h1/urdf/h1.urdf"
-k1_urdf = "kepler_ws/resources/Robots/Kepler/K1/urdf/k1.urdf"
+k1_urdf = "kepler_ws/resources/Robots/Kepler/K1/urdf/k1_v2.urdf"
 asset_descriptors = [
-    # AssetDesc(h1_xml, False),
     AssetDesc(k1_urdf, False),
 ]
-sk_tree = SkeletonTree.from_mjcf(h1_xml)
 
-motion_file = "data/k1/test.pkl"
-if os.path.exists(motion_file):
-    print(f"loading {motion_file}")
-else:
-    raise ValueError(f"Motion file {motion_file} does not exist! Please run grad_fit_h1.py first.")
 
 # parse arguments
 args = gymutil.parse_arguments(description="Joint monkey: Animate degree-of-freedom ranges",
@@ -184,13 +175,18 @@ for i in range(num_envs):
     dof_states = np.zeros(num_dofs, dtype=gymapi.DofState.dtype)
     gym.set_actor_dof_states(env, actor_handle, dof_states, gymapi.STATE_ALL)
 
-
 gym.prepare_sim(sim)
 
 
-
+#2) loading data 
 device = (torch.device("cuda", index=0) if torch.cuda.is_available() else torch.device("cpu"))
 k1_xml = "/home/admin-1/workspace/kepler_ws/resources/Robots/Kepler/K1/mjcf/mjmodel.xml"
+sk_tree = SkeletonTree.from_mjcf(k1_xml)
+motion_file = "data/k1/test.pkl"
+if os.path.exists(motion_file):
+    print(f"loading {motion_file}")
+else:
+    raise ValueError(f"Motion file {motion_file} does not exist! Please run grad_fit_h1.py first.")
 motion_lib = MotionLibK1(motion_file=motion_file, device=device, 
                          masterfoot_conifg=None, fix_height=False,
                           multi_thread=False, mjcf_file=k1_xml)
@@ -240,8 +236,6 @@ st_collected_data = [] # Tao Sun add this
 while not gym.query_viewer_has_closed(viewer):
     # step the physics
 
-    """
-    
     motion_len = motion_lib.get_motion_length(motion_id).item()
     motion_time = time_step % motion_len
     # motion_time = 0
@@ -252,7 +246,6 @@ while not gym.query_viewer_has_closed(viewer):
     root_pos, root_rot, dof_pos, root_vel, root_ang_vel, dof_vel, smpl_params, limb_weights, pose_aa, rb_pos, rb_rot, body_vel, body_ang_vel = \
                 motion_res["root_pos"], motion_res["root_rot"], motion_res["dof_pos"], motion_res["root_vel"], motion_res["root_ang_vel"], motion_res["dof_vel"], \
                 motion_res["motion_bodies"], motion_res["motion_limb_weights"], motion_res["motion_aa"], motion_res["rg_pos"], motion_res["rb_rot"], motion_res["body_vel"], motion_res["body_ang_vel"]
-    """
     if args.show_axis:
         gym.clear_lines(viewer)
     
@@ -261,19 +254,19 @@ while not gym.query_viewer_has_closed(viewer):
     gym.refresh_rigid_body_state_tensor(sim)
     # import pdb; pdb.set_trace()
     idx = 0
-    #for pos_joint in rb_pos[0, 1:]: # idx 0 torso (duplicate with 11)
-    #    sphere_geom2 = gymutil.WireframeSphereGeometry(0.1, 4, 4, None, color=(1, 0.0, 0.0))
-    #    sphere_pose = gymapi.Transform(gymapi.Vec3(pos_joint[0], pos_joint[1], pos_joint[2]), r=None)
-    #    gymutil.draw_lines(sphere_geom2, gym, viewer, envs[0], sphere_pose) 
-    # import pdb; pdb.set_trace()
-        
-    #root_states = torch.cat([root_pos, root_rot, root_vel, root_ang_vel], dim=-1).repeat(num_envs, 1)
+    for pos_joint in rb_pos[0, 1:]: # idx 0 torso (duplicate with 11)
+        sphere_geom2 = gymutil.WireframeSphereGeometry(0.1, 4, 4, None, color=(1, 0.0, 0.0))
+        sphere_pose = gymapi.Transform(gymapi.Vec3(pos_joint[0], pos_joint[1], pos_joint[2]), r=None)
+        gymutil.draw_lines(sphere_geom2, gym, viewer, envs[0], sphere_pose) 
+    #import pdb; pdb.set_trace()
+       
+    root_states = torch.cat([root_pos, root_rot, root_vel, root_ang_vel], dim=-1).repeat(num_envs, 1)
     
-    # For testing
-    root_states =torch.zeros(num_envs, 13).to(device)
-    root_states[:, 6] = 1.0
-    num_dofs = 24
-    dof_pos = torch.zeros(num_envs, num_dofs).to(device)
+    ## For testing
+    #root_states =torch.zeros(num_envs, 13).to(device)
+    #root_states[:, 6] = 1.0
+    #num_dofs = 24
+    #dof_pos = torch.zeros(num_envs, num_dofs).to(device)
 
     
     # gym.set_actor_root_state_tensor(sim, gymtorch.unwrap_tensor(root_states))
@@ -285,6 +278,7 @@ while not gym.query_viewer_has_closed(viewer):
     # speed = speeds[current_dof]
     
     dof_state = torch.stack([dof_pos, torch.zeros_like(dof_pos)], dim=-1).squeeze().repeat(num_envs, 1)
+
     # Debug joint names and its index
     #dof_state[joint_names.index('right_hip_pitch_joint'),0] = 1.57
     #dof_state[joint_names.index('left_hip_pitch_joint'),0] = -1.57
@@ -352,7 +346,7 @@ while not gym.query_viewer_has_closed(viewer):
             }
 
             # Define the path to the output file
-            output_file_path = "/home/admin-1/workspace/kepler_ws/KeplerRobot/datasets/motion_files/saved_k1_data.txt"
+            output_file_path = os.path.join(os.env("HOME"),"workspace/kepler_ws/KeplerRobot/datasets/motion_files/saved_k1_data.txt")
             # Save the dictionary to a text file in JSON format
             with open(output_file_path, 'w') as file:
                 json.dump(saved_data, file, indent=4)

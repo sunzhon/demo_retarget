@@ -31,7 +31,7 @@ from phc.utils.torch_k1_humanoid_batch import Humanoid_Batch, K1_ROTATION_AXIS
 
 k1_fk = Humanoid_Batch(extend_head=True, 
                        extend_hand=True,
-                       mjcf_file="/home/admin-1/workspace/kepler_ws/resources/Robots/Kepler/K1/mjcf/mjmodel.xml") # load forward kinematics model
+                       mjcf_file=os.path.join(os.getenv("HOME"),"workspace/kepler_ws/resources/Robots/Kepler/K1/mjcf/mjmodel.xml")) # load forward kinematics model
 
 print(f"nodes of robot: {k1_fk.model_names}")
 print(f"joints of robot: {k1_fk.model_names}")
@@ -66,7 +66,7 @@ joint_num = k1_fk.joints_range.shape[0]
 #### Preparing fitting varialbes
 if __name__ == "__main__":
     device = torch.device("cpu")
-    print(joint_num)
+    print("joint num  is :", joint_num)
     # Initialize K1 pose with identity rotation repeated for each joint
     pose_aa_k1 = np.repeat(np.repeat(sRot.identity().as_rotvec()[None, None, None, ], joint_num+3, axis=2), 1, axis=1)
     pose_aa_k1 = torch.from_numpy(pose_aa_k1).float()
