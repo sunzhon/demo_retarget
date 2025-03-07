@@ -230,10 +230,6 @@ sphere_params = gymapi.AssetOptions()
 
 sphere_asset = gym.create_sphere(sim, radius, sphere_params)
 
-num_spheres = 19
-init_positions = gymapi.Vec3(0.0, 0.0, 0.0)
-spacing = 0.
-
 
 st_collected_data = [] # Tao Sun add this
 while not gym.query_viewer_has_closed(viewer):
@@ -257,11 +253,23 @@ while not gym.query_viewer_has_closed(viewer):
     # import pdb; pdb.set_trace()
     idx = 0
     for pos_joint in rb_pos[0, 1:]: # idx 0 torso (duplicate with 11)
-        sphere_geom2 = gymutil.WireframeSphereGeometry(0.1, 4, 4, None, color=(1, 0.0, 0.0))
+        sphere_geom1 = gymutil.WireframeSphereGeometry(0.1, 4, 4, None, color=(1, 0.0, 0.0))
+        sphere_pose = gymapi.Transform(gymapi.Vec3(pos_joint[0], pos_joint[1], pos_joint[2]), r=None)
+        gymutil.draw_lines(sphere_geom1, gym, viewer, envs[0], sphere_pose) 
+
+    key_body_names = ["left_ankle_joint","right_ankle_joint"]
+    key_body_ids = [joint_names.index(tmp)+1 for tmp in key_body_names]
+    
+    key_body_pos = []
+    for pos_joint in rb_pos[0, key_body_ids]: # idx 0 torso (duplicate with 11)
+        sphere_geom2 = gymutil.WireframeSphereGeometry(0.1, 3, 3, None, color=(0, 0.0, 1.0))
+        key_body_pos.append(pos_joint-rb_pos[0,11])
         sphere_pose = gymapi.Transform(gymapi.Vec3(pos_joint[0], pos_joint[1], pos_joint[2]), r=None)
         gymutil.draw_lines(sphere_geom2, gym, viewer, envs[0], sphere_pose) 
-    # import pdb; pdb.set_trace()
-        
+    key_body_pos = torch.cat(key_body_pos)
+
+
+
     root_states = torch.cat([root_pos, root_rot, root_vel, root_ang_vel], dim=-1).repeat(num_envs, 1)
     
     # gym.set_actor_root_state_tensor(sim, gymtorch.unwrap_tensor(root_states))
@@ -269,11 +277,7 @@ while not gym.query_viewer_has_closed(viewer):
 
     gym.refresh_actor_root_state_tensor(sim)
 
-    # dof_pos = dof_pos.cpu().numpy()
-    # dof_states['pos'] = dof_pos
-    # speed = speeds[current_dof]
-    
-    dof_state = torch.stack([dof_pos, torch.zeros_like(dof_pos)], dim=-1).squeeze().repeat(num_envs, 1)
+    dof_state = torch.stack([dof_pos, dof_vel], dim=-1).squeeze().repeat(num_envs, 1)
     # Debug joint names and its index
     #dof_state[joint_names.index('right_hip_pitch_joint'),0] = 1.57
     #dof_state[joint_names.index('left_hip_pitch_joint'),0] = -1.57
@@ -282,7 +286,7 @@ while not gym.query_viewer_has_closed(viewer):
     gym.set_dof_state_tensor_indexed(sim, gymtorch.unwrap_tensor(dof_state), gymtorch.unwrap_tensor(env_ids), len(env_ids))
 
     # Tao SUn add this
-    st_collected_data.append(torch.cat([root_states.squeeze(), dof_state[:,0]],dim=-1).unsqueeze(0).numpy().squeeze().tolist())
+    st_collected_data.append(torch.cat([root_states.squeeze()[2:], dof_pos.squeeze(), dof_vel.squeeze(), key_body_pos], dim=-1).unsqueeze(0).numpy().squeeze().tolist())
 
     gym.simulate(sim)
     gym.refresh_rigid_body_state_tensor(sim)
@@ -325,10 +329,13 @@ while not gym.query_viewer_has_closed(viewer):
 
             ############################################################################
             # Tao Sun add this
-            data_field = ["root_pos_x", "root_pos_y","root_pos_z", 
+            data_field = ["root_pos_z", 
                           "root_rot_x", "root_rot_y", "root_rot_z", "root_rot_w",
                           "root_vel_x", "root_vel_y", "root_vel_z",
-                           "root_ang_vel_x", "root_ang_vel_y", "root_ang_vel_z"] + joint_names
+                           "root_ang_vel_x", "root_ang_vel_y", "root_ang_vel_z"] + \
+                            [key + "_dof_pos" for key in joint_names] +\
+                            [key + "_dof_vel" for key in joint_names] +\
+                            [k1+ "_"+ k2 for k1 in key_body_names for k2 in ["x", "y", "z"]]
             # Assuming saved_data is a dictionary
             saved_data = {
                 "LoopMode": "Wrap",
@@ -339,6 +346,8 @@ while not gym.query_viewer_has_closed(viewer):
                 "Fields": data_field,
                 "Frames": st_collected_data
             }
+            print(len(data_field))
+            assert len(st_collected_data[0]) == len(data_field), f"Data field length {len(data_field)} does not match collected data length {len(st_collected_data[0])}"
 
             # Define the path to the output file
             output_file_path = os.path.join(os.path.dirname(os.path.abspath(motion_file)), "saved_data.txt")
@@ -348,7 +357,6 @@ while not gym.query_viewer_has_closed(viewer):
             print(f"Saved data to {output_file_path}")
             st_collected_data = [] # Tao Sun add this
             ############################################################################
-
 
             print("End of motion library")
             break
