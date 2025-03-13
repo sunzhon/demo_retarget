@@ -348,9 +348,9 @@ while not gym.query_viewer_has_closed(viewer):
             }
             print(len(data_field))
             assert len(st_collected_data[0]) == len(data_field), f"Data field length {len(data_field)} does not match collected data length {len(st_collected_data[0])}"
-
+            data_idx = data_idx + 1 if "data_idx" in locals() else 0
             # Define the path to the output file
-            output_file_path = os.path.join(os.path.dirname(os.path.abspath(motion_file)), "saved_data.txt")
+            output_file_path = os.path.join(os.path.dirname(os.path.abspath(motion_file)), str(data_idx)+"_saved_data.txt")
             # Save the dictionary to a text file in JSON format
             with open(output_file_path, 'w') as file:
                 json.dump(saved_data, file, indent=4)
